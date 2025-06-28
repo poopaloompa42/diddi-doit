@@ -1,97 +1,111 @@
 from ursina import *
-from player import CubeGuest
-from camera_control import CameraController
+from player import create_player, update_camera_third_person
+from camera_modes import CameraController
+from cube_guest import CubeGuest
+from event_pys.fire_event import check_player_extinguish
+from world import setup_environment, spawn_guests, create_event_tiles
+from ui import setup_ui, update_ui
+from event_pys.mic_event import check_mic_interaction, consume_mic_effects
+from event_pys.guest_spawn_event import update_guest_spawner, set_npc_list_reference 
+from event_pys.dance_event import check_dance_interaction, consume_dance_effects
+from event_pys.dj_event import check_dj_interaction, consume_dj_effects
+from ui import setup_ui, update_ui, show_intro_screen, is_game_started
 
 app = Ursina()
-window.title = 'Diddi Cube Test'
-window.size = (1280, 720)
-window.color = color.rgb(200, 220, 255)
+window.title = 'Diddi Doit Voxel Test'
 
-background_music = Audio('assets/music/madness-210344.mp3', loop=True, autoplay=True)
+# === Setup environment and player ===
+setup_environment()
+create_event_tiles()
+player_sprite = create_player(Vec3(0, 5, 0))
 
-# Environment
-ground = Entity(
-    model='plane',
-    scale=100,
-    texture='white_cube',
-    texture_scale=(100, 100),
-    color=color.gray,
-    collider='box',
-    y=0
-)
+# === Orbit camera setup ===
+orbit_sprite = CubeGuest(is_player=False)
+orbit_sprite.position = player_sprite.position + Vec3(2, 0, 0)
+orbit_sprite.enabled = False
+cam_control = CameraController(target=orbit_sprite)
 
-# Sky Dome
-sky = Entity(
-    model='sphere',
-    scale=200,
-    double_sided=True,
-    color=color.rgba(200, 220, 255, 90)
-)
-
-# Player Setup
-player = CubeGuest(is_player=True)
-player.y = 5
-cam_control = CameraController(target=player)
-
-# FPV Mode Vars
-is_fpv = False
-fpv_cooldown = 0
-
-# Guests
+# === Spawn guests and UI ===
 npc_guests = []
-for i in range(10):
-    npc = CubeGuest()
-    npc.position = Vec3(random.uniform(-8, 8), 5, random.uniform(-8, 8))
-    npc_guests.append(npc)
+spawn_guests(count=10, around=Vec3(0, 5, 0))
+set_npc_list_reference(npc_guests)
+setup_ui()
+show_intro_screen()
 
-# Mouse rotation vars
-yaw = 0
-pitch = 0
-mouse_sensitivity = 100
+# === Camera toggle logic ===
+player_mode_enabled = True
+toggle_cooldown = 0
 
-def enable_fpv():
-    global is_fpv
-    camera.parent = player.head
-    camera.position = (0, 0.25, 0.5)  # Slight forward for visibility
-    camera.rotation = (0, 0, 0)
-    mouse.locked = True
-    is_fpv = True
+# === Game state ===
+hype = 10
+suspicion = 3
 
-def disable_fpv():
-    global is_fpv
-    camera.parent = None
-    camera.position = (0, 15, -25)
-    camera.look_at(player)
-    mouse.locked = False
-    is_fpv = False
+def switch_camera_mode():
+    global player_mode_enabled, cam_control
 
-disable_fpv()
+    player_mode_enabled = not player_mode_enabled
 
+    if player_mode_enabled:
+        orbit_sprite.enabled = False
+        player_sprite.enabled = True
+        if cam_control:
+            destroy(cam_control)
+            cam_control = None
+    else:
+        player_sprite.enabled = False
+        orbit_sprite.enabled = True
+        cam_control = CameraController(target=orbit_sprite)
+
+# === Main update loop ===
 def update():
-    global fpv_cooldown, yaw, pitch
+    global toggle_cooldown, hype, suspicion
 
-    # Handle FPV toggle
-    fpv_cooldown -= time.dt
-    if held_keys['f'] and fpv_cooldown <= 0:
-        if is_fpv:
-            disable_fpv()
-        else:
-            enable_fpv()
-        fpv_cooldown = 0.4  # Cooldown to prevent rapid toggling
+    if not is_game_started():  # Don't update until tutorial dismissed
+        return
 
-    # Handle FPV camera rotation
-    if is_fpv:
-        yaw += mouse.velocity[0] * mouse_sensitivity
-        pitch -= mouse.velocity[1] * mouse_sensitivity
-        pitch = clamp(pitch, -90, 90)
-        camera.rotation_x = pitch
-        player.head.rotation_y = yaw
+    toggle_cooldown -= time.dt
+    if held_keys['f'] and toggle_cooldown <= 0:
+        switch_camera_mode()
+        toggle_cooldown = 0.5
 
-    # Normal player update
-    if not held_keys['shift']:
-        player.update()
+    # Camera follow
+    if cam_control:
+        cam_control.update()
+
+    if player_mode_enabled:
+        player_sprite.update()
+        update_camera_third_person(player_sprite)
+        check_player_extinguish(player_sprite)
+        check_mic_interaction(player_sprite)
+        update_guest_spawner()
+        check_dance_interaction(player_sprite)
+        check_dj_interaction(player_sprite)
+        h_dj = consume_dj_effects()
+        hype += h_dj
+
+
+        # Apply dance effects
+        h_dance, s_dance = consume_dance_effects()
+        hype += h_dance
+        suspicion = max(0, suspicion + s_dance)
+
+
+        #  Apply mic event changes
+        hype_delta, suspicion_delta = consume_mic_effects()
+        hype += hype_delta
+        suspicion = max(0, suspicion + suspicion_delta)
+
+    else:
+        orbit_sprite.update()
 
     for npc in npc_guests:
         npc.update()
+
+    #  Use actual game state
+    update_ui(
+        hype_val=hype,
+        suspicion_val=suspicion,
+        guest_count=len(npc_guests) + 1
+    )
 
 app.run()
