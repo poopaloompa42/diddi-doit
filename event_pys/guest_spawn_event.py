@@ -1,7 +1,6 @@
-from ursina import time
+from ursina import time, Vec3
 from random import random
 from cube_guest import CubeGuest
-from ursina import Vec3
 
 spawn_timer = 0
 npc_list = None
@@ -21,8 +20,11 @@ def update_guest_spawner():
     spawn_timer += time.dt
     if spawn_timer >= 30:
         spawn_timer = 0
-        is_shiny = random() < 0.5
-        new_guest = CubeGuest(is_player=False, is_shiny=is_shiny)
+
+        # === Chance-based VIP logic ===
+        is_seed_guest = random() < 0.3  # 30% chance guest is a VIP seed celeb
+        new_guest = CubeGuest(is_player=False, is_seed_guest=is_seed_guest)
         new_guest.position = spawn_position
         npc_list.append(new_guest)
-        print(f"{'Shiny' if is_shiny else 'Normal'} guest arrived!")
+
+        print(f"{'SEED CELEB' if is_seed_guest else 'Normal'} guest arrived!")

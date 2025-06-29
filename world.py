@@ -8,14 +8,15 @@ npc_guests = []
 def setup_environment():
     Sky(color=color.rgb(200, 220, 255))
     Entity(
-        model='plane',
-        scale=100,
-        texture='white_cube',
-        texture_scale=(100, 100),
-        color=color.azure,
-        collider='box',
-        y=0
-    )
+    model='cube',
+    scale=(100, 1, 100),
+    texture='white_cube',
+    texture_scale=(100, 100),
+    color=color.azure,
+    collider='box',
+    y=-0.5  # adjust so top of cube is at y=0
+   )
+
     Entity(model='cube', color=color.red, position=Vec3(0, 1, 0), scale=2)
     
     #  Fire tiles

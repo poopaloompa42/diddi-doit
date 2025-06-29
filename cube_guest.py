@@ -1,30 +1,43 @@
 
 from ursina import *
+from guest_stats import GuestStats
 import math
 import random
 
 class CubeGuest(Entity):
-    def __init__(self, is_player=False):
+    def __init__(self, is_player=False, is_seed_guest=False):
         super().__init__()
+        self.collider = 'box'
         self.is_player = is_player
+        self.is_seed_guest = is_seed_guest
         self.gravity = 9.8
         self.vertical_velocity = 0
         self.speed = 5
+        self.stats = GuestStats()
 
-        # Visuals
-        self.torso = Entity(parent=self, model='cube', scale=(1,1.5,0.5), y=1, color=color.random_color())
+
+        # === Visuals ===
+        torso_color = color.gold if self.is_seed_guest else color.random_color()
+        self.torso = Entity(parent=self, model='cube', scale=(1,1.5,0.5), y=1, color=torso_color)
+        self.original_color = torso_color  # <== Store the default torso color
         self.head = Entity(parent=self.torso, model='cube', scale=(1,1,0.5), y=1.5, color=color.random_color())
         self.arm_L = Entity(parent=self.torso, model='cube', scale=(0.3,1,0.3), position=(-0.75,0.25,0), origin_y=0.5, color=color.random_color())
         self.arm_R = Entity(parent=self.torso, model='cube', scale=(0.3,1,0.3), position=(0.75,0.25,0), origin_y=0.5, color=color.random_color())
         self.leg_L = Entity(parent=self, model='cube', scale=(0.4,1,0.4), position=(-0.3,0,0), origin_y=0.5, color=color.random_color())
         self.leg_R = Entity(parent=self, model='cube', scale=(0.4,1,0.4), position=(0.3,0,0), origin_y=0.5, color=color.random_color())
 
+        # === Movement state ===
         self.walk_time = 0
         self.dancing = False
         self.dance_time = 0
-
         self.idle_timer = random.uniform(0, 2)
         self.stroll_dir = Vec3(random.uniform(-1,1), 0, random.uniform(-1,1)).normalized()
+
+    def set_highlighted(self, state: bool):
+        if state:
+            self.torso.color = color.white.tint(0.25)
+        else:
+            self.torso.color = self.original_color
 
     def update(self):
         # === GRAVITY ===
